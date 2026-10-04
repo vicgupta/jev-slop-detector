@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jev Slop Detector</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+@custom-variant dark (&:where(.dark, .dark *));
+</style>
+<script>
+try {
+  const t = localStorage.getItem("slop.theme");
+  if (t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)) {
+    document.documentElement.classList.add("dark");
+  }
+} catch {}
+</script>
+</head>
+<body class="min-h-screen bg-zinc-100 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100">
+<div class="mx-auto max-w-3xl px-4 py-10">
+
+  <header class="mb-6 flex items-start justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-bold tracking-tight">Jev Slop Detector</h1>
+      <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Paste text, get a typed verdict — 1 choice + 10 scores + 1 noul, one round-trip.</p>
+    </div>
+    <button id="theme" title="Toggle light / dark (defaults to system)"
+      class="rounded-xl p-2 text-zinc-500 ring-1 ring-zinc-300 transition hover:text-zinc-900 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:text-zinc-100">
+      <svg id="icon-moon" class="hidden h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+      <svg id="icon-sun" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4" /><path stroke-linecap="round" d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+    </button>
+  </header>
+
+  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+    <label for="text" class="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Text to check</label>
+    <textarea id="text" placeholder="Paste something possibly sloppy here…"
+      class="min-h-40 w-full rounded-xl border border-zinc-300 bg-white p-3 text-sm leading-relaxed shadow-inner outline-none placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-400 dark:focus:ring-zinc-400/10"></textarea>
+
+    <div class="mt-4 flex flex-wrap items-center gap-4">
+      <label class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+        Gate threshold
+        <input id="threshold" type="range" min="0.5" max="0.9" step="0.05" value="0.7"
+          class="h-1.5 w-36 cursor-pointer appearance-none rounded-full bg-zinc-300 accent-zinc-900 dark:bg-zinc-700 dark:accent-zinc-100" />
+        <span id="tval" class="rounded-md bg-zinc-100 px-2 py-0.5 font-mono text-xs font-semibold dark:bg-zinc-800 dark:text-zinc-200">0.70</span>
+      </label>
+      <button id="go"
+        class="rounded-xl bg-zinc-900 px-5 py-2 text-sm font-semibold text-white shadow transition hover:bg-zinc-700 active:scale-95 disabled:cursor-wait disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white">Check</button>
+    </div>
+
+    <div class="mt-4 grid gap-3 border-t border-zinc-200 pt-4 sm:grid-cols-3 dark:border-zinc-800">
+      <label class="block text-sm font-medium text-zinc-700 sm:col-span-1 dark:text-zinc-300">Provider
+        <select id="provider"
+          class="mt-1 w-full rounded-xl border border-zinc-300 bg-white p-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400">
+          <option value="typesafe">TypeSafe (direct)</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="ollama">Ollama (local)</option>
+        </select>
+      </label>
+      <label id="wrap-typesafe" class="block text-sm font-medium text-zinc-700 sm:col-span-2 dark:text-zinc-300">TypeSafe API key
+        <input id="key-typesafe" type="password" placeholder="ts_…" autocomplete="off"
+          class="mt-1 w-full rounded-xl border border-zinc-300 bg-white p-2 font-mono text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:placeholder:text-zinc-500 dark:focus:border-zinc-400" />
+      </label>
+      <label id="wrap-openrouter" class="block text-sm font-medium text-zinc-700 sm:col-span-2 dark:text-zinc-300">OpenRouter API key
+        <input id="key-openrouter" type="password" placeholder="sk-or-…" autocomplete="off"
+          class="mt-1 w-full rounded-xl border border-zinc-300 bg-white p-2 font-mono text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:placeholder:text-zinc-500 dark:focus:border-zinc-400" />
+      </label>
+      <label id="wrap-ollama" class="block text-sm font-medium text-zinc-700 sm:col-span-2 dark:text-zinc-300">Ollama model
+        <input id="model-ollama" type="text" autocomplete="off"
+          class="mt-1 w-full rounded-xl border border-zinc-300 bg-white p-2 font-mono text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:placeholder:text-zinc-500 dark:focus:border-zinc-400" />
+      </label>
+    </div>
+    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Keys live only in this browser's localStorage — never written to disk or sent anywhere except to your local server with each check.</p>
+  </section>
+
+  <div id="out" class="mt-6"></div>
+
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+$("threshold").oninput = (e) => { $("tval").textContent = Number(e.target.value).toFixed(2); };
+
+const mem = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+function syncThemeIcon() {
+  const dark = document.documentElement.classList.contains("dark");
+  $("icon-moon").classList.toggle("hidden", dark);
+  $("icon-sun").classList.toggle("hidden", !dark);
+}
+$("theme").onclick = () => {
+  const dark = document.documentElement.classList.toggle("dark");
+  mem.set("slop.theme", dark ? "dark" : "light");
+  syncThemeIcon();
+};
+syncThemeIcon();
+
+function toggleProvider() {
+  const p = $("provider").value;
+  $("wrap-typesafe").style.display = p === "typesafe" ? "" : "none";
+  $("wrap-openrouter").style.display = p === "openrouter" ? "" : "none";
+  $("wrap-ollama").style.display = p === "ollama" ? "" : "none";
+  mem.set("slop.provider", p);
+}
+
+$("provider").value = mem.get("slop.provider", "openrouter");
+$("key-typesafe").value = mem.get("slop.key.typesafe", "");
+$("key-openrouter").value = mem.get("slop.key.openrouter", "");
+$("model-ollama").value = mem.get("slop.model.ollama", "tev1:latest");
+$("provider").onchange = toggleProvider;
+$("key-typesafe").oninput = (e) => mem.set("slop.key.typesafe", e.target.value);
+$("key-openrouter").oninput = (e) => mem.set("slop.key.openrouter", e.target.value);
+$("model-ollama").oninput = (e) => mem.set("slop.model.ollama", e.target.value);
+toggleProvider();
+fetch("/api/config").then((r) => r.json()).then((c) => {
+  if (mem.get("slop.provider", "") === "") $("provider").value = c.provider === "hosted" ? "openrouter" : c.provider;
+  if (mem.get("slop.model.ollama", "") === "") $("model-ollama").value = c.ollamaModel;
+  toggleProvider();
+}).catch(() => {});
+
+const badge = {
+  pass: "bg-green-100 text-green-800 ring-green-300 dark:bg-green-900/40 dark:text-green-200 dark:ring-green-700",
+  review: "bg-yellow-100 text-yellow-800 ring-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200 dark:ring-yellow-700",
+  flag: "bg-red-100 text-red-800 ring-red-300 dark:bg-red-900/40 dark:text-red-200 dark:ring-red-700",
+};
+
+const card = "rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800";
+const errCard = "rounded-2xl bg-red-50 p-5 text-sm text-red-800 shadow-sm ring-1 ring-red-200 dark:bg-red-950/60 dark:text-red-200 dark:ring-red-800";
+
+const scoreRow = (name, s) => `
+  <div>
+    <div class="mb-1 flex items-baseline justify-between text-sm">
+      <span class="font-medium capitalize">${name.replace(/_/g, " ")}</span>
+      <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400">${s.score.toFixed(2)} / 3</span>
+    </div>
+    <div class="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+      <div class="h-full rounded-full bg-zinc-900 dark:bg-zinc-100" style="width:${(s.score / 3 * 100).toFixed(0)}%"></div>
+    </div>
+    <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">${(s.legend && s.legend[String(Math.round(s.score))]) || ""}</div>
+  </div>`;
+
+$("go").onclick = async () => {
+  const out = $("out");
+  const btn = $("go");
+  btn.disabled = true;
+  const provider = $("provider").value;
+  const apiKey = provider === "typesafe" ? $("key-typesafe").value.trim()
+    : provider === "openrouter" ? $("key-openrouter").value.trim() : "";
+  const model = provider === "ollama" ? $("model-ollama").value.trim() || undefined : undefined;
+  out.innerHTML = `<div class="${card} text-sm text-zinc-500 dark:text-zinc-400">Checking via ${provider}…</div>`;
+  try {
+    const r = await fetch("/api/check", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: $("text").value, threshold: Number($("threshold").value), provider, apiKey, model }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      out.innerHTML = `<div class="${errCard}"><b>Error:</b> ${data.error}</div>`;
+      return;
+    }
+    const a = data.answers, v = data.verdict;
+    const gate = Number(data.threshold);
+    const idx = a.slop_index ? a.slop_index.score : NaN;
+    const indexTone = !a.slop_index ? ""
+      : idx >= 2 ? "text-red-600 dark:text-red-400"
+      : idx >= 1.5 ? "text-amber-600 dark:text-amber-400"
+      : "text-green-600 dark:text-green-400";
+    const sloppy = a.is_slop.noul >= gate;
+    const zone = sloppy ? "slop" : a.is_slop.noul >= gate - 0.2 ? "unclear" : "clean";
+    const gateBanner = {
+      slop: "bg-red-600 text-white ring-red-700 dark:bg-red-500 dark:ring-red-400",
+      unclear: "bg-amber-500 text-white ring-amber-600 dark:bg-amber-500 dark:ring-amber-400",
+      clean: "bg-green-600 text-white ring-green-700 dark:bg-green-600 dark:ring-green-500",
+    }[zone];
+    const gateLabel = {
+      slop: "✕ READS AS SLOP",
+      unclear: "? UNCLEAR — NEEDS A LOOK",
+      clean: "✓ LOOKS CLEAN",
+    }[zone];
+    const scores = Object.entries(a).filter(([k, v]) => v.type === "score" && k !== "slop_index");
+    const probs = Object.entries(a.style_bucket.probabilities)
+      .map(([k, p]) => `<span class="rounded-md bg-zinc-100 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-300">${k} ${Math.round(p * 100)}%</span>`)
+      .join(" ");
+    out.innerHTML = `
+      <div class="${card}">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="rounded-full px-3 py-1 text-xs font-bold ring-1 ${badge[v.label]}">${v.label.toUpperCase()}</span>
+          <span class="text-sm text-zinc-600 dark:text-zinc-400">${v.reasons.join(" · ") || "clean"}</span>
+        </div>
+        <div class="mt-3 rounded-xl px-4 py-3 text-center ring-1 ${gateBanner}">
+          <div class="text-xl font-black tracking-wide">${gateLabel}</div>
+          <div class="mt-0.5 font-mono text-xs opacity-90">is_slop ${a.is_slop.noul.toFixed(2)} vs gate ${gate.toFixed(2)}</div>
+        </div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span class="font-mono text-4xl font-bold tracking-tight ${indexTone}">${a.slop_index ? a.slop_index.score.toFixed(1) : "–"}</span>
+          <span class="text-sm text-zinc-500 dark:text-zinc-400">/ 3 slop index</span>
+        </div>
+        <div class="mt-4 flex flex-wrap items-center gap-2 text-sm">
+          <span class="text-zinc-500 dark:text-zinc-400">bucket:</span>
+          <span class="font-semibold">${a.style_bucket.choice}</span>${probs}
+        </div>
+        <div class="mt-4 grid gap-4">${scores.map(([k, s]) => scoreRow(k, s)).join("")}</div>
+        <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-zinc-100 pt-4 text-sm dark:border-zinc-800">
+          ${data.trimmed ? `<span class="text-zinc-500 dark:text-zinc-400">trimmed to 4000 chars</span>` : ``}
+          ${data.usage ? `<span class="ml-auto font-mono text-xs text-zinc-400 dark:text-zinc-500">via ${data.provider} · tokens ${data.usage.input_tokens ?? "?"} · $${data.usage.cost_usd ?? "?"}</span>` : `<span class="ml-auto font-mono text-xs text-zinc-400 dark:text-zinc-500">via ${data.provider}</span>`}
+        </div>
+        <details class="mt-3 text-xs">
+          <summary class="cursor-pointer text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200">raw JSON</summary>
+          <pre class="mt-2 overflow-auto rounded-xl bg-zinc-950 p-4 font-mono text-[11px] leading-relaxed text-zinc-100 dark:bg-black dark:ring-1 dark:ring-zinc-800">${JSON.stringify(data, null, 2)}</pre>
+        </details>
+      </div>`;
+  } catch (e) {
+    out.innerHTML = `<div class="${errCard}"><b>Error:</b> request failed.</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+};
+</script>
+</body>
+</html>
